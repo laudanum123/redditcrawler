@@ -1,3 +1,3 @@
-from bs4 import beautifulsoup
+from bs4 import BeautifulSoup
 
 print('Hello World')
