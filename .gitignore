@@ -128,3 +128,5 @@ dmypy.json
 # Pyre type checker
 .pyre/
 .vscode/settings.json
+reddit.csv
+reddit.pkl
