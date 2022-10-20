@@ -5,6 +5,8 @@ import pandas as pd
 import datetime as dt
 import nltk
 from tld import get_fld
+from tqdm import tqdm
+tqdm.pandas()
 
 def pull_reddit_data():
     '''Pulls data from reddit and returns a pandas dataframe with top posts'''
@@ -48,7 +50,7 @@ def pull_reddit_data():
 
 def read_stored_reddit_data():
     '''Reads data from reddit.csv and returns a pandas dataframe with top posts'''
-    df = pd.read_pickle('reddit.pkl')
+    df = pd.read_pickle('./reddit.pkl')
     return df
 
 def get_date(created):
@@ -68,16 +70,16 @@ def preprocess_data(df):
     df.drop_duplicates(subset =["id"], inplace = True)
 
     # Get domain names from urls
-    if df['domain_name'].empty:
+    if 'domain_name' not in df.columns:
         df['domain_name'] = df['url'].apply(get_fld)
     
     # Get author names
-    if df['author'].empty:
-        df['author'] = df['id'].apply(lambda x: reddit.submission(id=x).author)
+    if 'author' not in df.columns:
+        df['author'] = df['id'].progress_apply(lambda x: reddit.submission(id=x).author)
         df.loc[df['author'].isna() == False, 'author_name'] = df.loc[df['author'].isna() == False]['author'].apply(lambda x: x.name)
         df.loc[df['author'].isna() == True, 'author_name'] = df.loc[df['author'].isna() == True]['author'].apply(lambda x: x)
 
-    
+    pd.to_pickle(df, 'reddit.pkl')
     
     """ nltk.download('vader_lexicon')
     from nltk.sentiment.vader import SentimentIntensityAnalyzer as SIA
