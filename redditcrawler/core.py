@@ -55,8 +55,7 @@ def read_stored_reddit_data():
     df = pd.read_pickle('./reddit.pkl')
     return df
 
-def get_date(created):
-    return dt.datetime.fromtimestamp(created)
+
 
 def preprocess_data(df):
     '''Processes the data from the reddit dataframe'''
@@ -68,7 +67,7 @@ def preprocess_data(df):
 
     reddit.subreddit('UkrainianConflict')
 
-    df["created"] = df['created'].apply(get_date)
+    df["created"] = df['created'].apply(helpers.get_date)
     df.drop_duplicates(subset =["id"], inplace = True)
 
     # Get domain names from urls
