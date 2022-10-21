@@ -5,7 +5,9 @@ import pandas as pd
 import datetime as dt
 import nltk
 from tld import get_fld
+import sqlite3
 from tqdm import tqdm
+import helpers
 tqdm.pandas()
 
 def pull_reddit_data():
@@ -97,7 +99,5 @@ def preprocess_data(df):
     
 
 if __name__ == '__main__':
-    df = read_stored_reddit_data()
-    results = preprocess_data(df)
-
+    helpers.grab_new_submissions('UkrainianConflict')
     

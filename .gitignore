@@ -130,3 +130,4 @@ dmypy.json
 .vscode/settings.json
 reddit.csv
 reddit.pkl
+reddit.db
