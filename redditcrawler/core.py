@@ -57,30 +57,30 @@ def read_stored_reddit_data():
 
 
 
-def preprocess_data(df):
-    '''Processes the data from the reddit dataframe'''
+def augment_submission_data(subreddit_name):
+    '''Adds augmented columns for all submissions not yet processed in the database'''
 
     reddit = praw.Reddit(client_id='-NuD7EbzEKxtmdzCycYLCQ',
                          client_secret='5xx3LIrF_a9s6CLU2K8q46dmzv6l6w',
                          user_agent='USER_AGENT',
                         )
 
-    reddit.subreddit('UkrainianConflict')
+    reddit.subreddit(subreddit_name)
 
-    df["created"] = df['created'].apply(helpers.get_date)
-    df.drop_duplicates(subset =["id"], inplace = True)
-
-    # Get domain names from urls
-    if 'domain_name' not in df.columns:
-        df['domain_name'] = df['url'].apply(get_fld)
-    
-    # Get author names
-    if 'author' not in df.columns:
-        df['author'] = df['id'].progress_apply(lambda x: reddit.submission(id=x).author)
-        df.loc[df['author'].isna() == False, 'author_name'] = df.loc[df['author'].isna() == False]['author'].apply(lambda x: x.name)
-        df.loc[df['author'].isna() == True, 'author_name'] = df.loc[df['author'].isna() == True]['author'].apply(lambda x: x)
-
-    pd.to_pickle(df, 'reddit.pkl')
+    con = sqlite3.connect('reddit.db')
+    cur = con.cursor()
+    try:
+        cur.execute('SELECT * FROM submissions WHERE subreddit=? AND domain_name IS NULL AND url IS NOT NULL', (subreddit_name,))
+        rows = cur.fetchall()
+        for row in tqdm(rows):
+            submission = reddit.submission(id=row[0])
+            domain_name = get_fld(submission.url)
+            author_name = submission.author.name
+            cur.execute('UPDATE submissions SET domain_name=?, author_name=? WHERE id=?', (domain_name, author_name, row[0]))
+            con.commit()
+            con.close()
+    except sqlite3.DatabaseError as e:
+        print('Error: ', e)
     
     """ nltk.download('vader_lexicon')
     from nltk.sentiment.vader import SentimentIntensityAnalyzer as SIA
@@ -93,10 +93,10 @@ def preprocess_data(df):
         pol_score['headline'] = line
         results.append(pol_score)
     """
-    return df
 
     
 
 if __name__ == '__main__':
     helpers.grab_new_submissions('UkrainianConflict')
+    augment_submission_data('UkrainianConflict')
     
