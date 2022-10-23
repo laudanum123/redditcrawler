@@ -77,7 +77,7 @@ def grab_new_submissions(subreddit_name, limit=None):
     con = sqlite3.connect('reddit.db')
     try:
         lines_added = new_submissions_df.to_sql('submissions', con, if_exists='append', index=False)
-        print(str(lines_added) + ' lines added to the database')
+        print('{} lines added to the database'.format(lines_added))
     except ValueError:
         print('No new submissions')
     con.commit()
