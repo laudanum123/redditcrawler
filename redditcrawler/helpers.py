@@ -22,7 +22,7 @@ def turn_pkl_to_sql(df):
 def get_date(created):
     return dt.datetime.fromtimestamp(created)
 
-def grab_new_submissions(subreddit_name):
+def grab_new_submissions(subreddit_name, limit=None):
     '''Retrieve new submissions for subreddit and add them to the DB'''
 
     # Get the last submission we have in the database
@@ -52,7 +52,7 @@ def grab_new_submissions(subreddit_name):
                 "created": [], 
                 "body":[]}
 
-    for submission in tqdm(subreddit.new(limit=500)):
+    for submission in tqdm(subreddit.new(limit=limit)):
         if submission.stickied:
             continue
         else:
@@ -70,13 +70,14 @@ def grab_new_submissions(subreddit_name):
     new_submissions_df["created"] = new_submissions_df['created'].apply(get_date)
     
     # Get all new submissions that are newer than the last submission we have in the database
-    new_submissions_df = new_submissions_df[new_submissions_df['created'] > last_submission]        
+    if limit != 0:
+        new_submissions_df = new_submissions_df[new_submissions_df['created'] > last_submission]
     
     # Add the new submissions to the database
     con = sqlite3.connect('reddit.db')
     try:
-        lines_added = new_submissions_df.to_sql('submissions', con, if_exists='fail', index=False)
-        print(lines_added)
+        lines_added = new_submissions_df.to_sql('submissions', con, if_exists='append', index=False)
+        print(str(lines_added) + ' lines added to the database')
     except ValueError:
         print('No new submissions')
     con.commit()

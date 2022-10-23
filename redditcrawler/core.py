@@ -8,53 +8,8 @@ from tld import get_fld
 import sqlite3
 from tqdm import tqdm
 import helpers
+import matplotlib.pyplot as plt
 tqdm.pandas()
-
-def pull_reddit_data():
-    '''Pulls data from reddit and returns a pandas dataframe with top posts'''
-    reddit = praw.Reddit(client_id='-NuD7EbzEKxtmdzCycYLCQ',
-                         client_secret='5xx3LIrF_a9s6CLU2K8q46dmzv6l6w',
-                         user_agent='USER_AGENT',
-                        )
-
-    subreddit = reddit.subreddit('UkrainianConflict')
-
-    hot = subreddit.hot(limit=1000)
-
-    dict =        { "title":[],
-                "subreddit":[],
-                "score":[], 
-                "id":[], 
-                "url":[], 
-                "comms_num": [], 
-                "created": [], 
-                "body":[],
-                "comments":[]}
-
-    for submission in hot:
-        if submission.stickied:
-            continue
-        else:
-            dict["title"].append(submission.title)
-            dict['subreddit'].append(submission.subreddit)
-            dict["score"].append(submission.score)
-            dict["id"].append(submission.id)
-            dict["url"].append(submission.url)
-            dict["comms_num"].append(submission.num_comments)
-            dict["created"].append(submission.created)
-            dict["body"].append(submission.selftext)
-            dict["comments"].append(submission.comments)
-
-    df = pd.DataFrame(dict)
-    df.to_pickle('reddit.pkl')
-    
-    return df
-
-def read_stored_reddit_data():
-    '''Reads data from reddit.csv and returns a pandas dataframe with top posts'''
-    df = pd.read_pickle('./reddit.pkl')
-    return df
-
 
 
 def augment_submission_data(subreddit_name):
@@ -72,13 +27,18 @@ def augment_submission_data(subreddit_name):
     try:
         cur.execute('SELECT * FROM submissions WHERE subreddit=? AND domain_name IS NULL AND url IS NOT NULL', (subreddit_name,))
         rows = cur.fetchall()
-        for row in tqdm(rows):
+        for i, row in enumerate(tqdm(rows)):
+            try:
+                domain_name = get_fld(row[4])
+            except:
+                domain_name = "None"
             submission = reddit.submission(id=row[0])
-            domain_name = get_fld(submission.url)
-            author_name = submission.author.name
+            author_name = submission.author.name if submission.author else None
             cur.execute('UPDATE submissions SET domain_name=?, author_name=? WHERE id=?', (domain_name, author_name, row[0]))
-            con.commit()
-            con.close()
+            if (i+1) % 50 == 0:
+                con.commit()
+        con.commit()    
+        con.close()
     except sqlite3.DatabaseError as e:
         print('Error: ', e)
     
@@ -94,9 +54,34 @@ def augment_submission_data(subreddit_name):
         results.append(pol_score)
     """
 
-    
+def plot_author_distribution(subreddit_name):
+    '''Plots the distribution of authors in the database'''
+    con = sqlite3.connect('./reddit.db')
+    cur = con.cursor()
+    cur.execute('SELECT author_name, COUNT(*) FROM submissions WHERE subreddit=? GROUP BY author_name ORDER BY COUNT(*) DESC LIMIT 100', (subreddit_name,))
+    rows = cur.fetchall()
+    con.close()
+    df = pd.DataFrame(rows, columns=['author', 'count'])
+    df['percentage'] = df['count'] / df['count'].sum()
+    df.plot.bar(x='author', y='percentage')
+    plt.show()
+
+def plot_domain_distribution(subreddit_name):
+    '''Plots the distribution of domains in the database'''
+    con = sqlite3.connect('./reddit.db')
+    cur = con.cursor()
+    cur.execute('SELECT domain_name, COUNT(*) FROM submissions WHERE subreddit=? GROUP BY domain_name ORDER BY COUNT(*) DESC LIMIT 100', (subreddit_name,))
+    rows = cur.fetchall()
+    con.close()
+    df = pd.DataFrame(rows, columns=['domain', 'count'])
+    df['percentage'] = df['count'] / df['count'].sum()
+    df.plot.bar(x='domain', y='percentage')
+    plt.show()
 
 if __name__ == '__main__':
-    helpers.grab_new_submissions('UkrainianConflict')
-    augment_submission_data('UkrainianConflict')
+    subreddit_name = 'UkraineConflict'
+    helpers.grab_new_submissions(subreddit_name, limit=None)
+    augment_submission_data(subreddit_name)
+    plot_author_distribution(subreddit_name)
+    plot_domain_distribution(subreddit_name)
     
