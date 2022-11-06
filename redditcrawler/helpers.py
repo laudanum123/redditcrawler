@@ -1,99 +1,124 @@
+'''This module contains helper functions for the redditcrawler package.'''
+
 import datetime as dt
 import sqlite3
-
 import pandas as pd
 import praw
 from psaw import PushshiftAPI
 from tqdm import tqdm
+from collections import defaultdict
 
 
-def convert_datatypes(df):
+def convert_datatypes(df_raw):
     '''Converts the datatypes of the columns in the dataframe'''
-    convert_dict = {'id': str, 'title': str, 'subreddit': str,
-                    'score': int, 'url': str, 'comms_num': int, 'body': str}
-    df_submission = df.astype(convert_dict)
+    convert_dict = {
+        'id': str,
+        'title': str,
+        'subreddit': str,
+        'score': int,
+        'url': str,
+        'comms_num': int,
+        'body': str
+    }
+    df_submission = df_raw.astype(convert_dict)
     return df_submission
 
 
-def turn_pkl_to_sql(df):
+def turn_pkl_to_sql(df_raw):
     '''Turns the reddit.pkl file into a sqlite3 database'''
-    df_submission = convert_datatypes(df)
+    df_submission = convert_datatypes(df_raw)
 
     with sqlite3.connect('data/db/reddit.db') as con:
         df_submission.to_sql('submissions', con, if_exists='replace')
         con.commit()
         con.close()
 
-
-def get_date(created : int):
+def get_date(created: int):
+    '''Converts the created column to a datetime object'''
     return dt.datetime.fromtimestamp(created)
 
+def get_last_submission_from_db(subreddit_name):
+    '''Retrieve new submissions for subreddit and add them to the DB'''
+    con = sqlite3.connect('data/db/reddit.db')
+    cur = con.cursor()
+    try:
+        cur.execute('SELECT MAX(created) FROM submissions WHERE subreddit=?',
+                (subreddit_name, ))
+        last_submission = cur.fetchone()[0]
+        if last_submission:
+            last_submission = dt.datetime.strptime(last_submission,
+                                                   '%Y-%m-%d %H:%M:%S')
+    except sqlite3.DatabaseError as database_error:
+        print('Error: ', database_error)
+        last_submission = None
+    con.close()
+    return last_submission
 
-def grab_new_submissions(subreddit_name: str, only_new: bool = True, limit: int = 0):
+def get_pushshift_and_praw_instance():
+    '''Returns a praw instance wrapped in a PushshiftAPI instance and original praw instance'''
+    praw_instance = praw.Reddit(
+        client_id='-NuD7EbzEKxtmdzCycYLCQ',
+        client_secret='5xx3LIrF_a9s6CLU2K8q46dmzv6l6w',
+        user_agent='USER_AGENT',
+    )
+    ps_instance = PushshiftAPI(praw_instance)
+    return ps_instance, praw_instance
+
+
+def grab_new_submissions(subreddit_name: str,
+                         only_new: bool = True,
+                         limit: int = 0):
     '''Retrieve new submissions for subreddit and add them to the DB'''
 
-    # Get the last submission we have in the database
     if only_new:
-        con = sqlite3.connect('data/db/reddit.db')
-        cur = con.cursor()
-        try:
-            cur.execute(
-                'SELECT MAX(created) FROM submissions WHERE subreddit=?', (subreddit_name,))
-            last_submission = cur.fetchone()[0]
-            last_submission = dt.datetime.strptime(
-                last_submission, '%Y-%m-%d %H:%M:%S')
-        except sqlite3.DatabaseError as e:
-            print('Error: ', e)
-            last_submission = dt.datetime(1970, 1, 1, 0, 0, 0)
-        con.close()
+        last_submission = get_last_submission_from_db(subreddit_name)
+        if last_submission is None:
+            print('No submissions found in database for subreddit: ', subreddit_name)
+            print('Grabbing all submissions for subreddit: ', subreddit_name)
+            last_submission = dt.datetime(1970, 1, 1)
     else:
         last_submission = dt.datetime(1970, 1, 1, 0, 0, 0)
 
+    # Create PushshiftAPI instance
+    ps_handler, praw_handler = get_pushshift_and_praw_instance()
+
     # Get the new submissions from Reddit
-    reddit = praw.Reddit(client_id='-NuD7EbzEKxtmdzCycYLCQ',
-                         client_secret='5xx3LIrF_a9s6CLU2K8q46dmzv6l6w',
-                         user_agent='USER_AGENT',
-                         )
-    
-    api = PushshiftAPI(reddit)
-    
-    submissions = api.search_submissions(after=last_submission, subreddit=subreddit_name, limit=limit)
-                                         
-    dict = {"title": [],
-            "subreddit": [],
-            "score": [],
-            "id": [],
-            "url": [],
-            "comms_num": [],
-            "created": [],
-            "body": []}
+    submissions = ps_handler.search_submissions(after=last_submission,
+                                         subreddit=subreddit_name,
+                                         limit=limit)
+
+    submission_dict = defaultdict(list)
 
     for i, submission_id in enumerate(tqdm(submissions)):
-        submission = reddit.submission(submission_id)
+        submission = praw_handler.submission(submission_id)
         if submission.stickied:
             continue
-        else:
-            dict["title"].append(submission.title)
-            dict['subreddit'].append(submission.subreddit)
-            dict["score"].append(submission.score)
-            dict["id"].append(submission.id)
-            dict["url"].append(submission.url)
-            dict["comms_num"].append(submission.num_comments)
-            dict["created"].append(submission.created)
-            dict["body"].append(submission.selftext)
-            print(submission.title)
-        if (i+1)%20 == 0:
-            new_submissions_df = pd.DataFrame(dict)
+        submission_dict["title"].append(submission.title)
+        submission_dict["subreddit"].append(submission.subreddit)
+        submission_dict["score"].append(submission.score)
+        submission_dict["id"].append(submission.id)
+        submission_dict["url"].append(submission.url)
+        submission_dict["comms_num"].append(submission.num_comments)
+        submission_dict["created"].append(submission.created)
+        submission_dict["body"].append(submission.selftext)
+        print(submission.title)
+
+        if (i + 1) % 20 == 0:
+            new_submissions_df = pd.DataFrame(submission_dict)
             new_submissions_df = convert_datatypes(new_submissions_df)
-            new_submissions_df["created"] = new_submissions_df['created'].apply(get_date)
+            new_submissions_df["created"] = new_submissions_df[
+                'created'].apply(get_date)
 
             # Add the new submissions to the database
             con = sqlite3.connect('data/db/reddit.db')
             try:
-                lines_added = new_submissions_df.to_sql('submissions', con, if_exists='append', index=False)
-                print('{} lines added to the database'.format(lines_added)) 
+                lines_added = new_submissions_df.to_sql('submissions',
+                                                        con,
+                                                        if_exists='append',
+                                                        index=False)
+                print(f'{lines_added} lines added to the database')
                 con.commit()
             except ValueError:
                 print('No new submissions')
             con.close()
-            new_submissions_df = pd.DataFrame()
+            submission_dict.clear()
