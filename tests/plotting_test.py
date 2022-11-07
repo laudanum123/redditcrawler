@@ -77,5 +77,9 @@ class PlottingTests(unittest.TestCase):
         # Assert
         self.assertTrue(exists(f'./output/{subreddit_name}_wordcloud.png'))
 
+        # Clean up
+        if exists(f'./output/{subreddit_name}_wordcloud.png'):
+            remove(f'./output/{subreddit_name}_wordcloud.png')
+
 if __name__ == '__main__':
     unittest.main()
