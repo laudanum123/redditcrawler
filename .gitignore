@@ -139,3 +139,4 @@ dockerfile
 environment.yml
 output/*
 pylintrc
+docker-compose.yaml
