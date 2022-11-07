@@ -1,9 +1,7 @@
 '''Testing the plotting module.'''
 import unittest
-import datetime
 from os.path import exists
 from os import remove
-import pandas as pd
 from redditcrawler import plotting
 
 class PlottingTests(unittest.TestCase):
