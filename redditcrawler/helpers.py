@@ -10,7 +10,7 @@ from tqdm import tqdm
 from tld import get_fld
 from tld.exceptions import TldDomainNotFound, TldBadUrl
 
-def convert_datatypes(df_raw):
+def convert_datatypes(df_raw: pd.DataFrame) -> pd.DataFrame:
     '''Converts the datatypes of the columns in the dataframe'''
     convert_dict = {
         'id': str,
@@ -24,20 +24,11 @@ def convert_datatypes(df_raw):
     df_submission = df_raw.astype(convert_dict)
     return df_submission
 
-def turn_pkl_to_sql(df_raw):
-    '''Turns the reddit.pkl file into a sqlite3 database'''
-    df_submission = convert_datatypes(df_raw)
-
-    with sqlite3.connect('data/db/reddit.db') as con:
-        df_submission.to_sql('submissions', con, if_exists='replace')
-        con.commit()
-        con.close()
-
-def get_date(created: int):
+def get_date(created: int) -> dt.datetime:
     '''Converts the created column to a datetime object'''
     return dt.datetime.fromtimestamp(created)
 
-def get_last_submission_from_db(subreddit_name):
+def get_last_submission_from_db(subreddit_name: str) -> dt.datetime:
     '''Retrieve new submissions for subreddit and add them to the DB'''
     con = sqlite3.connect('data/db/reddit.db')
     cur = con.cursor()
@@ -54,7 +45,7 @@ def get_last_submission_from_db(subreddit_name):
     con.close()
     return last_submission
 
-def get_pushshift_and_praw_instance():
+def get_pushshift_and_praw_instance() -> (PushshiftAPI, praw.Reddit):
     '''Returns a praw instance wrapped in a PushshiftAPI instance and original praw instance'''
     praw_instance = praw.Reddit(
         client_id='-NuD7EbzEKxtmdzCycYLCQ',
@@ -72,7 +63,7 @@ def grab_new_submissions(subreddit_name: str,
     # Create PushshiftAPI instance
     ps_handler, praw_handler = get_pushshift_and_praw_instance()
     if subreddit_name == 'rand':
-        subreddit_name = praw_handler.random_subreddit(nsfw=False)
+        subreddit_name = praw_handler.random_subreddit(nsfw=True)
     if only_new:
         last_submission = get_last_submission_from_db(subreddit_name)
         if last_submission is None:
@@ -111,7 +102,7 @@ def grab_new_submissions(subreddit_name: str,
             submission_dict["domain_name"].append(submission_domain)
         except (TldDomainNotFound, TldBadUrl):
             submission_dict["domain_name"].append('')
-     
+
         print(f'{get_date(submission.created)} - {submission.title}')
 
         if (i + 1) % 20 == 0:
