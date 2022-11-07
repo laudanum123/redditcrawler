@@ -131,3 +131,11 @@ dmypy.json
 reddit.csv
 reddit.pkl
 reddit.db
+
+.vscode/*
+anaconda-project.yml
+docker-compose.yml
+dockerfile
+environment.yml
+output/*
+pylintrc
