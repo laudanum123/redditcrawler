@@ -108,7 +108,7 @@ def grab_new_submissions(subreddit_name: str,
             submission_dict["domain_name"].append('')
 
         print(f'{get_date(submission.created)} - {submission.title}')
-        
+       
         # while retrieving new submissions, write to the database every 20
         # submissions to avoid losing data if the program crashes
         if (i + 1) % 20 == 0:

@@ -1,13 +1,14 @@
 '''Functions related to plotting data from the RedditCrawler script'''
 
-import matplotlib.pyplot as plt
 import sqlite3
+import matplotlib.pyplot as plt
 import pandas as pd
+import datetime as dt
 from wordcloud import WordCloud
 from nltk.corpus import stopwords
 
-def plot_author_distribution(sr_name):
-    '''Plots the distribution of authors in the database'''
+def plot_author_distribution(sr_name: str) -> None:
+    '''Plot the distribution of authors in a subreddit'''
 
     con = sqlite3.connect('data/db/reddit.db')
     cur = con.cursor()
@@ -29,7 +30,7 @@ def plot_author_distribution(sr_name):
     plt.savefig(f'./output/{sr_name}_author_distribution.png')
 
 
-def plot_domain_distribution(sr_name):
+def plot_domain_distribution(sr_name: str) -> None:
     '''Plots the distribution of domains in the database'''
 
     con = sqlite3.connect('data/db/reddit.db')
@@ -52,7 +53,7 @@ def plot_domain_distribution(sr_name):
     plt.savefig(f'./output/{sr_name}_domain_distribution.png')
 
 
-def plot_time_distribution(sr_name: str):
+def plot_time_distribution(sr_name: str) -> None:
     '''Plots the distribution of submissions over time in the database'''
 
     con = sqlite3.connect('data/db/reddit.db')
@@ -85,7 +86,7 @@ def plot_time_distribution(sr_name: str):
 
     plt.savefig(f'./output/{sr_name}_time_distribution.png')
 
-def plot_wordcloud(sr_name: str):
+def plot_wordcloud(sr_name: str) -> None:
     '''Plots a wordcloud of the submissions in the database for a given subreddit'''
 
     con = sqlite3.connect('data/db/reddit.db')
