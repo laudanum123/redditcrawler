@@ -93,10 +93,14 @@ def grab_new_submissions(subreddit_name: str,
         submission_dict["comms_num"].append(submission.num_comments)
         submission_dict["created"].append(get_date(submission.created))
         submission_dict["body"].append(submission.selftext)
+
+        # some submissions do not have an author
         if submission.author is not None:
             submission_dict["author_name"].append(submission.author.name)
         else:
             submission_dict["author_name"].append('deleted')
+
+        # get the domain of the url if it exists
         try:
             submission_domain = get_fld(submission.url)
             submission_dict["domain_name"].append(submission_domain)
@@ -104,7 +108,9 @@ def grab_new_submissions(subreddit_name: str,
             submission_dict["domain_name"].append('')
 
         print(f'{get_date(submission.created)} - {submission.title}')
-
+        
+        # while retrieving new submissions, write to the database every 20
+        # submissions to avoid losing data if the program crashes
         if (i + 1) % 20 == 0:
             new_submissions_df = pd.DataFrame(submission_dict)
             new_submissions_df = convert_datatypes(new_submissions_df)
@@ -122,4 +128,5 @@ def grab_new_submissions(subreddit_name: str,
                 print('No new submissions')
             con.close()
             submission_dict.clear()
+    # if a random subreddit was chosen, we need to know its name
     return subreddit_name
