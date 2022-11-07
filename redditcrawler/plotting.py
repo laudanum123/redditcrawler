@@ -99,7 +99,7 @@ def plot_wordcloud(sr_name: str) -> None:
         return
     con.close()
     df_wordcloud = pd.DataFrame(rows, columns=['title'])
-    df_wordcloud['title'] = df_wordcloud['title'].progress_apply(
+    df_wordcloud['title'] = df_wordcloud['title'].apply(
         lambda x: ' '.join([word for word in x.split() \
                 if word not in (stopwords.words('english'))]))
     wordcloud = WordCloud(width=1600, height=800).generate(' '.join(df_wordcloud['title']))
