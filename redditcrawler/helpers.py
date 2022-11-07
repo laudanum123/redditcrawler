@@ -2,12 +2,13 @@
 
 import datetime as dt
 import sqlite3
+from collections import defaultdict
 import pandas as pd
 import praw
 from psaw import PushshiftAPI
 from tqdm import tqdm
-from collections import defaultdict
-
+from tld import get_fld
+from tld.exceptions import TldDomainNotFound, TldBadUrl
 
 def convert_datatypes(df_raw):
     '''Converts the datatypes of the columns in the dataframe'''
@@ -22,7 +23,6 @@ def convert_datatypes(df_raw):
     }
     df_submission = df_raw.astype(convert_dict)
     return df_submission
-
 
 def turn_pkl_to_sql(df_raw):
     '''Turns the reddit.pkl file into a sqlite3 database'''
@@ -66,10 +66,13 @@ def get_pushshift_and_praw_instance():
 
 
 def grab_new_submissions(subreddit_name: str,
-                         only_new: bool = True,
+                         only_new: bool = False,
                          limit: int = 0):
     '''Retrieve new submissions for subreddit and add them to the DB'''
-
+    # Create PushshiftAPI instance
+    ps_handler, praw_handler = get_pushshift_and_praw_instance()
+    if subreddit_name == 'rand':
+        subreddit_name = praw_handler.random_subreddit(nsfw=False)
     if only_new:
         last_submission = get_last_submission_from_db(subreddit_name)
         if last_submission is None:
@@ -79,15 +82,13 @@ def grab_new_submissions(subreddit_name: str,
     else:
         last_submission = dt.datetime(1970, 1, 1, 0, 0, 0)
 
-    # Create PushshiftAPI instance
-    ps_handler, praw_handler = get_pushshift_and_praw_instance()
-
     # Get the new submissions from Reddit
     submissions = ps_handler.search_submissions(after=last_submission,
                                          subreddit=subreddit_name,
                                          limit=limit)
 
     submission_dict = defaultdict(list)
+    print('Grabbing new submissions for subreddit: ', subreddit_name)
 
     for i, submission_id in enumerate(tqdm(submissions)):
         submission = praw_handler.submission(submission_id)
@@ -99,15 +100,23 @@ def grab_new_submissions(subreddit_name: str,
         submission_dict["id"].append(submission.id)
         submission_dict["url"].append(submission.url)
         submission_dict["comms_num"].append(submission.num_comments)
-        submission_dict["created"].append(submission.created)
+        submission_dict["created"].append(get_date(submission.created))
         submission_dict["body"].append(submission.selftext)
-        print(submission.title)
+        if submission.author is not None:
+            submission_dict["author_name"].append(submission.author.name)
+        else:
+            submission_dict["author_name"].append('deleted')
+        try:
+            submission_domain = get_fld(submission.url)
+            submission_dict["domain_name"].append(submission_domain)
+        except (TldDomainNotFound, TldBadUrl):
+            submission_dict["domain_name"].append('')
+     
+        print(f'{get_date(submission.created)} - {submission.title}')
 
         if (i + 1) % 20 == 0:
             new_submissions_df = pd.DataFrame(submission_dict)
             new_submissions_df = convert_datatypes(new_submissions_df)
-            new_submissions_df["created"] = new_submissions_df[
-                'created'].apply(get_date)
 
             # Add the new submissions to the database
             con = sqlite3.connect('data/db/reddit.db')
@@ -122,3 +131,4 @@ def grab_new_submissions(subreddit_name: str,
                 print('No new submissions')
             con.close()
             submission_dict.clear()
+    return subreddit_name
